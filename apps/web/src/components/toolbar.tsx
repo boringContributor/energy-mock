@@ -1,5 +1,6 @@
 import { ENTITIES, ENTITY_ORDER, toCsv, toFlatJson, toNestedJson, toZip, type ColumnSelection, type Dataset, type EntityKey } from '@energy-mock/core'
 import { ChevronDown, Copy, Download, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +16,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { download } from '@/lib/files'
 import type { Delimiter, Format } from '@/lib/state'
+import { CombinedExport } from './combined-export'
 
 interface Props {
   dataset: Dataset
@@ -29,6 +31,7 @@ interface Props {
 }
 
 export function Toolbar({ dataset, columns, tab, seed, format, delimiter, onFormatChange, onDelimiterChange, onRegenerate }: Props) {
+  const [combinedOpen, setCombinedOpen] = useState(false)
   const base = `energy-mock-${seed.replace(/[^a-z0-9_-]+/gi, '_') || 'data'}`
   const label = ENTITIES[tab].label
   const tableText = () =>
@@ -67,13 +70,21 @@ export function Toolbar({ dataset, columns, tab, seed, format, delimiter, onForm
         <Button className={`${mono} rounded-r-none`} onClick={downloadTable}>
           <Download /> Download {label}
         </Button>
-        <DropdownMenu>
+        {/* Non-modal, so the dialog opened from it gets pointer events back when the menu closes. */}
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button className="rounded-l-none border-l border-primary-foreground/20 px-2.5" aria-label="More export options">
               <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuItem onSelect={() => setCombinedOpen(true)}>
+              <div>
+                Combined file…
+                <div className="text-xs text-muted-foreground">One row per record, with related tables as extra columns</div>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Everything</DropdownMenuLabel>
             <DropdownMenuItem
               onSelect={() => download(`${base}.zip`, toZip(Object.fromEntries(ENTITY_ORDER.map((e) => [`${e}.csv`, toCsv(dataset[e], columns[e], delimiter)]))), 'application/zip')}
@@ -101,6 +112,18 @@ export function Toolbar({ dataset, columns, tab, seed, format, delimiter, onForm
       <Button variant="outline" className={mono} onClick={copy}>
         <Copy /> Copy
       </Button>
+      {combinedOpen && (
+        <CombinedExport
+          open
+          onOpenChange={setCombinedOpen}
+          dataset={dataset}
+          columns={columns}
+          initialBase={tab}
+          seed={seed}
+          format={format}
+          delimiter={delimiter}
+        />
+      )}
     </div>
   )
 }

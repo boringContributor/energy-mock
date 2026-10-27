@@ -11,7 +11,9 @@ import {
   isValidMeloId,
   maloCheckDigit,
   normalizeScenario,
+  relatedEntities,
   toCsv,
+  toJoinedTable,
   toNestedJson,
   type Scenario,
 } from '../src'
@@ -285,5 +287,45 @@ describe('exports', () => {
       const fieldKeys = ENTITIES[key].fields.map((f) => f.key).sort()
       expect(Object.keys(ds[key][0]!).sort()).toEqual(fieldKeys)
     }
+  })
+})
+
+describe('combined export', () => {
+  const ds = generateDataset(scenario({ customers: 20 }))
+  const cols = defaultColumns()
+
+  it('lists only parent entities as joinable', () => {
+    expect(relatedEntities('contract')).toEqual(['contact', 'billing_account', 'product'])
+    expect(relatedEntities('meter_reading')).toEqual(['meter_counter', 'meter', 'contract', 'contact', 'billing_account', 'product'])
+    expect(relatedEntities('contact')).toEqual([])
+  })
+
+  it('puts the contact next to each contract', () => {
+    const joined = toJoinedTable(ds, 'contract', ['contact'], cols)
+    expect(joined.rows).toHaveLength(ds.contract.length)
+    expect(joined.columns).toContain('contact.first_name')
+    const contacts = new Map(ds.contact.map((c) => [c.id, c]))
+    joined.rows.forEach((row, i) => {
+      expect(row['contact.customer_number']).toBe(contacts.get(ds.contract[i]!.contact_id)!.customer_number)
+    })
+  })
+
+  it('reaches distant parents through entities that are not exported', () => {
+    const joined = toJoinedTable(ds, 'meter_reading', ['contact'], cols)
+    const meters = new Map(ds.meter.map((m) => [m.id, m]))
+    const contracts = new Map(ds.contract.map((c) => [c.id, c]))
+    const contacts = new Map(ds.contact.map((c) => [c.id, c]))
+    joined.rows.forEach((row, i) => {
+      const contact = contacts.get(contracts.get(meters.get(ds.meter_reading[i]!.meter_id)!.contract_id)!.contact_id)!
+      expect(row['contact.id']).toBe(contact.id)
+    })
+    expect(joined.columns.some((c) => c.startsWith('meter.'))).toBe(false)
+    expect((joined.nested[0]!.contact as Record<string, unknown>).id).toBe(joined.rows[0]!['contact.id'])
+  })
+
+  it('leaves related columns empty when the foreign key is null', () => {
+    const joined = toJoinedTable(ds, 'price_component', ['product'], cols)
+    const statutory = joined.rows.find((r) => r.scope === 'statutory')!
+    expect(statutory['product.name']).toBeNull()
   })
 })
