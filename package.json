@@ -1,0 +1,12 @@
+{
+  "name": "energy-mock",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @energy-mock/web dev",
+    "build": "pnpm --filter @energy-mock/web build",
+    "test": "pnpm --filter @energy-mock/core test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@10.34.6"
+}
